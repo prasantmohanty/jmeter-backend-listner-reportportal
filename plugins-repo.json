@@ -1,0 +1,17 @@
+{
+  "id": "jmeter.backendlistener.reportportal",
+  "name": "Report Portal backend listener",
+  "description": "Apache JMeter plugin for sending sample results to Report Portal. <ul><li>Simply add a \"Backend Listener\" and change the implementation</li><li>Change the listener's configuration</li><li>To use filters, simply separate their name by a semicolon. (f1;f2;f3)</li></ul>",
+  "helpUrl": "https://github.com/prasantmohanty/jmeter-backend-listner-reportportal/issues",
+  "screenshotUrl": "https://github.com/prasantmohanty/jmeter-backend-listner-reportportal/blob/master/docs/configuration.JPG",
+  "vendor": "prasantmohanty",
+  "markerClass": "io.github.prasantmohanty.jmeter.backendlistener.reportportal.ReportPortalBackendListenerClient",
+  "versions": {
+    "1.0.0": {
+      "changes": "Initial version.",
+      "downloadUrl": "https://search.maven.org/remotecontent?filepath=io/github/prasantmohanty/jmeter.backendlistener.reportportal/1.0.0/jmeter.backendlistener.reportportal-1.0.0.jar",
+      "depends": [
+      ]
+    }
+  }
+}
