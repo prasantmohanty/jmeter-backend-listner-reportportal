@@ -24,6 +24,7 @@ public class ReportPortalImportAPIClient {
   private final OkHttpClient http;
   private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
                                          .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ReportPortalImportAPIClient.class);
 
   public ReportPortalImportAPIClient(Map<String, String> reportPortalConfigs) {
 
@@ -40,6 +41,9 @@ public class ReportPortalImportAPIClient {
     this.bearerToken = reportPortalConfigs.get("BearerToken");
     this.testName = reportPortalConfigs.get("TestName");
     this.buildNumber = reportPortalConfigs.get("BuildNumber");
+    
+    logger.debug("Initialized ReportPortalImportAPIClient for project: " + this.projectName + ", testName: " + this.testName + ", build: " + this.buildNumber);
+
     this.http = new OkHttpClient();
   }
 

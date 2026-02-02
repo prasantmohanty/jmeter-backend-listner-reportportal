@@ -95,11 +95,33 @@ public void publishMetrics() {
           .toAbsolutePath()
           .resolve("junit" + timestamp + ".xml")
           .toString();
-    
+
     logger.debug("####JUnit report file: " + junitReportFile);
 
+    // Determine a sensible test suite name to embed in the JUnit XML.
+    // Priority: reportPortalConfigs.TestSuiteName -> first metric's ThreadName -> reportPortalConfigs.TestName -> "no_name"
+    String testSuiteName = null;
+    try {
+      testSuiteName = getReportPortalConfigs().get("TestSuiteName");
+      if (testSuiteName == null || testSuiteName.trim().isEmpty()) {
+        if (this.metricList != null && this.metricList.size() > 0) {
+          com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+          com.fasterxml.jackson.databind.JsonNode first = mapper.readTree(this.metricList.get(0));
+          testSuiteName = first.path("ThreadName").asText();
+        }
+      }
+    } catch (Exception e) {
+      logger.debug("Unable to derive testSuiteName from first metric", e);
+    }
+    if (testSuiteName == null || testSuiteName.trim().isEmpty()) {
+      testSuiteName = getReportPortalConfigs().get("TestName");
+    }
+    if (testSuiteName == null || testSuiteName.trim().isEmpty()) {
+      testSuiteName = "no_name";
+    }
+
     final DomXmlJUnitReportWriter writer
-            = new DomXmlJUnitReportWriter(junitReportFile, "");
+            = new DomXmlJUnitReportWriter(junitReportFile, testSuiteName);
 
     for (int i = 0; i < this.metricList.size(); i++) {
       String metricJson = this.metricList.get(i);
@@ -110,10 +132,14 @@ public void publishMetrics() {
         logger.debug("Parsed JSON node: " + node.toPrettyString()); 
         
 
-        String sampleLabel = node.path("SampleLabel").asText("");
-        String failureMessage = node.path("FailureMessage").asText("");
-        String responseCode = node.path("ResponseCode").asText("");
-        String responseMessage = node.path("ResponseMessage").asText("");
+  String sampleLabel = node.path("SampleLabel").asText("");
+  String failureMessage = node.path("FailureMessage").asText("");
+  String responseCode = node.path("ResponseCode").asText("");
+  String responseMessage = node.path("ResponseMessage").asText("");
+  String requestBody = node.path("RequestBody").asText("");
+  String requestHeaders = node.path("RequestHeaders").asText("");
+  String responseBody = node.path("ResponseBody").asText("");
+  String responseHeaders = node.path("ResponseHeaders").asText("");
 
         logger.debug("Parsed metric: SampleLabel={}, FailureMessage={}, ResponseCode={}, ResponseMessage={}",
         sampleLabel, failureMessage, responseCode, responseMessage);
@@ -121,7 +147,17 @@ public void publishMetrics() {
       boolean success = isFailureMessageAbsent(failureMessage);
       logger.debug("Determined success status: {}", success);
 
-      writer.write(new JtlRecord(sampleLabel, success, responseMessage, failureMessage));
+      writer.write(new JtlRecord(
+        sampleLabel,
+        success,
+        responseMessage,
+        failureMessage,
+        requestHeaders,
+        requestBody,
+        responseHeaders,
+        responseBody,
+        responseCode
+      ));
       logger.debug("Successfully wrote metric to JUnit report: {}", junitReportFile);
 
         // use sampleLabel, failureMessage, responseCode, responseMessage as needed
@@ -165,22 +201,36 @@ public void publishMetrics() {
   
 
   public void publishToReportPortal(String junitReportFile) {
-    String apiBaseUrl = "http://localhost:8080/api/";      // e.g., https://rp.example.com/api
-    String project = "default_personal";         // e.g., my_project
-    String token = "MyRPKEY_A8UB7HbTRY6UpRDRqeFcCjJ6-aKw9Cu34MV6blvRaNJMzwLxXo4FLNUdZFHmdPtp";// JWT or API Key
-    String launchName = "JMeter Test";
+    
     logger.debug("Preparing to publish JUnit report to ReportPortal: " + junitReportFile);
     File file = new File(junitReportFile);
     String description = "Imported via API";
     ReportPortalImportAPIClient client = new ReportPortalImportAPIClient(getReportPortalConfigs());
-    logger.debug("Created ReportPortalImportClient for project: " + project);
+    logger.debug("Created ReportPortalImportClient for project: " + getReportPortalConfigs().get("ProjectName"));
     
     LaunchImportRq rq = new LaunchImportRq()
-        .setName(launchName)
+        .setName(getReportPortalConfigs().get("TestName"))
         .setDescription(description)
         .setStartTime(Instant.now())
         .addAttribute("origin", "bulk-import", false)
         .addAttribute("framework", "junit", false);
+
+    // Attach the testsuite name as an attribute so ReportPortal can index it with the launch
+    try {
+      String suiteAttr = (getReportPortalConfigs().get("TestSuiteName") != null && !getReportPortalConfigs().get("TestSuiteName").trim().isEmpty())
+          ? getReportPortalConfigs().get("TestSuiteName")
+          : "";
+      if (suiteAttr.isEmpty()) {
+        // derive from generated junit file's root attribute which we set earlier (testSuiteName)
+        // we can reuse the TestName as a sensible fallback
+        suiteAttr = getReportPortalConfigs().get("TestName");
+      }
+      if (suiteAttr != null && !suiteAttr.trim().isEmpty()) {
+        rq.addAttribute("testsuite", suiteAttr, false);
+      }
+    } catch (Exception e) {
+      logger.debug("Failed to add testsuite attribute to LaunchImportRq", e);
+    }
 
     try {
       String response = client.importLaunch(file, rq);

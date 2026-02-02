@@ -1,4 +1,4 @@
-# jmeter-backend-listener-kareportportal
+# jmeter-backend-listener-reportportal
 
  
 A JMeter plug-in that enables you to send test results to a Report Portal server.
@@ -12,41 +12,19 @@ JMeter Backend Listener ReportPortal is a JMeter plugin enabling you to send tes
 
 ### Features
 
--   Filters
-    -   Only send the samples you want, by using Filters! Simply type them as follows in the appropriate field: `filter1;filter2;filter3` or `sampleLabel_must_contain_this`.
-
--   Specific fields `field1;field2;field3`
-    -   Specify fields that you want to send to Report Portal (possible fields below):
-        -   AllThreads
-        -   BodySize
-        -   Bytes
-        -   SentBytes
-        -   ConnectTime
-        -   ContentType
-        -   DataType
-        -   ErrorCount
-        -   GrpThreads
-        -   IdleTime
+-   Currently it sends these details to report portal 
         -   Latency
         -   ResponseTime
-        -   SampleCount
-        -   SampleLabel
-        -   ThreadName
-        -   URL
+        -   BuildNo 
+        -   Total Test cases 
+        -   Passed Test cases 
+        -   Failed Test cases
         -   ResponseCode
         -   TestStartTime
         -   SampleStartTime
         -   SampleEndTime
-        -   Timestamp
-        -   InjectorHostname
+-   This plugin listens to the responses 
 
--   Verbose, semi-verbose, error only, and quiet mode:
-    -   **debug** : Send request/response information of all samplers (headers, body, etc.)
-    -   **info** : Sends all samplers to the Report Portal server, but only sends the headers, body info for the failed samplers.
-    -   **quiet** : Only sends the response time, bytes, and other metrics
-    -   **error** : Only sends the failing samplers to the Report Portal server (Along with their headers and body information).
-
--   Use Logstash/NiFi or any other tool to consume data from Report Portal topic and then ingest it into a Database of your liking.
 
 ### Maven dependency
 
@@ -54,7 +32,7 @@ JMeter Backend Listener ReportPortal is a JMeter plugin enabling you to send tes
 <dependency>
     <groupId>io.github.prasantmohanty</groupId>
     <artifactId>jmeter.backendlistener.reportportal</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
@@ -71,17 +49,17 @@ JMeter Backend Listener ReportPortal is a JMeter plugin enabling you to send tes
     ```bash
     mkdir -P /home/jmeter
     cd /home/jmeter
-    curl -O -k http://mirror.vorboss.net/apache//jmeter/binaries/apache-jmeter-5.1.1.tgz
-    tar -zxvf apache-jmeter-5.1.1.tgz
-    ln -s apache-jmeter-5.1.1 ./current
-    export JMETER_HOME=/home/jmeter/apache-jmeter-5.1.1
+    curl -O -k http://mirror.vorboss.net/apache//jmeter/binaries/apache-jmeter-5.6.3.tgz
+    tar -zxvf apache-jmeter-5.6.3.tgz
+    ln -s apache-jmeter-5.6.3 ./current
+    export JMETER_HOME=/home/jmeter/apache-jmeter-5.6.3
     ```
 
 -   Download and install [Plugin Manager](https://jmeter-plugins.org/wiki/PluginsManager/) to `lib/ext` folder:
 
     ```bash
-    curl -O -k http://search.maven.org/remotecontent?filepath=kg/apc/jmeter-plugins-manager/1.3/jmeter-plugins-manager-1.3.jar
-    mv jmeter-plugins-manager-1.3.jar apache-jmeter-5.1.1/lib/ext/
+    curl -O -k http://search.maven.org/remotecontent?filepath=kg/apc/jmeter-plugins-manager/1.11/jmeter-plugins-manager-1.11.jar
+    mv jmeter-plugins-manager-1.11.jar apache-jmeter-5.6.3/lib/ext/
     ```
 
     Detailed instructions on installing Plug-ins Manager are available at this [blog](https://octoperf.com/blog/2018/04/04/jmeter-plugins-install/).
@@ -113,27 +91,21 @@ JMeter Backend Listener ReportPortal is a JMeter plugin enabling you to send tes
 
 -   You will find Report Portal Backend listener plug-in mentioned in the Installed plug-ins tab.
 
-### Configuring jmeter-backend-listener-Report Portal plug-in
+### Configuring jmeter-backend-listener-reportportal plug-in
 
 -   In your **Test Pan**, right click on **Thread Group** > Add > Listener > Backend Listener
--   Choose `io.github.prasantmohanty.jmeter.backendlistener.reportportal.Report PortalBackendClient` as `Backend Listener Implementation`.
--   Specify parameters as shown in image below (**bootstrap.servers** and **Report Portal.topic** are mandatory ones): 
+-   Choose `io.github.prasantmohanty.jmeter.backendlistener.reportportal.ReportPortalBackendClient` as `Backend Listener Implementation`.
+-   Specify parameters as shown in image below (**ReportPortalAPIBase** , **ProjectName** and **BearerToken** are mandatory ones): 
 
 ![Screenshot of configuration](docs/configuration.JPG "Screenshot of configuration")
 
 ### Running your JMeter test plan
 
-You can run the test plan in GUI mode or in CLI mode using command like below:
+You can run the test plan in GUI mode by clicking the **Start** button  
 
-```bash
-bin/jmeter -H [HTTP proxy server] -P [HTTP proxy port] -N "localhost|127.0.0.1|*.singhaiuklimited.com" -n -t test_Report Portalserver.jmx -l test_Report Portalserver_result.jtl
-```
 
 ## Screenshots
 
-### Sample Grafana dashboard
-
-![Sample Grafana dashboard](https://image.ibb.co/jW6LNx/Screen_Shot_2018_03_21_at_10_21_18_AM.png "Sample Grafana Dashboard")
 
 ### For more info
 
@@ -143,38 +115,3 @@ For more information, here's a little [documentation](https://github.com/prasant
 
 Feel free to contribute by branching and making pull requests, or simply by suggesting ideas through the "Issues" tab.
 
-### Code Styling
-
--   Please find instructions [here](https://github.com/HPI-Information-Systems/Metanome/wiki/Installing-the-google-styleguide-settings-in-intellij-and-eclipse) on how to configure your IntelliJ or Eclipse to format the source code according to Google style.
-    Once configured in IntelliJ, format code as normal with `Ctrl + Alt + L`.
-
-    Adding the XML file alone and auto-formatting the whole document could replace imports with wildcard imports, which isn't always what we want.
-
-    -   To stop this from happening, Go to `File` → `Settings` → `Editor` → `Code Style` → `Java` and select the `Imports` tab.
-    -   Set `Class Count to use import with '*'` and `Names count to us static import with '*'` to a higher value; anything over `999` should be fine.
-
-    You can now reformat code throughout your project without imports being changed to Wildcard imports.
-
--   You also need to use `maven-git-code-format` plugin in `pom.xml` to auto format the code according to Google code style before any Git commit.
-
-### [Markdown formatting](https://github.com/remarkjs/remark/tree/master/packages/remark-cli)
-
-Use **remark-cli** to format markdown files.
-It ensures a single style is used: list items use one type of bullet (_, -, +), emphasis (_ or \_) and importance (\_\_ or \*\*) use a standard marker, table fences are aligned, and more.
-
--   Install `remark-cli` and `remark-preset-lint-recommended`
-
-    ```bash
-    npm install remark-cli -g
-    npm install remark-preset-lint-recommended -g
-
-    # Add a table of contents to `README.md`
-    remark README.md --use toc --output
-
-    # Lint markdown files in the current directory
-    # according to the markdown style guide.
-    remark README.md --use remark-preset-lint-recommended -o
-
-    # Rewrite all applicable files
-    remark . -o
-    ```

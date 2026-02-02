@@ -75,10 +75,10 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
   }
 
   private ReportPortalMetricPublisher publisher;
-  private Set<String> modes;
-  private Set<String> filters;
+   private Set<String> filters;
   private Set<String> fields;
-  private int buildNumber;
+  private String buildNumber;
+  private String testName;
 
   @Override
   public Arguments getDefaultParameters() {
@@ -93,7 +93,6 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
     logger.debug(BUILD_NUMBER + " parameter: " + context.getParameter(BUILD_NUMBER));
     logger.debug(REPORTPORTAL_API_BASE + " parameter: " + context.getParameter(REPORTPORTAL_API_BASE));
     logger.debug(REPORTPORTAL_PROJECT_NAME + " parameter: " + context.getParameter(REPORTPORTAL_PROJECT_NAME));
-    logger.debug(REPORTPORTAL_BEARRER_TOKEN_STRING + " parameter: " + context.getParameter(REPORTPORTAL_BEARRER_TOKEN_STRING));
     logger.debug(REPORTPORTAL_TEST_NAME + " parameter: " + context.getParameter(REPORTPORTAL_TEST_NAME));
     
     Map<String, String> reportPortalConfigs = new HashMap<>();
@@ -105,15 +104,14 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
 
     this.filters = new HashSet<>();
     this.fields = new HashSet<>();
-    this.modes = new HashSet<>(Arrays.asList("info", "debug", "error", "quiet"));
-    this.buildNumber =
+     this.buildNumber =
         (JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER) != null
                 && !JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER).trim().equals(""))
-            ? Integer.parseInt(JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER))
-            : 0;
-
-    Properties props = new Properties();
-  
+            ? JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER)
+            : "0";
+    logger.debug("Build Number: " + this.buildNumber);
+    logger.debug("Test Name: " + this.testName);
+    
     //convertParameterToSet(context, KAFKA_SAMPLE_FILTER, this.filters);
     //convertParameterToSet(context, KAFKA_FIELDS, this.fields);
     //KafkaProducer<Long, String> producer = new KafkaProducer<>(props);

@@ -79,9 +79,29 @@ public class DomXmlJUnitReportWriter implements Closeable {
             failureDetails.setAttribute("message", failureMessage);
             testCase.appendChild(failureDetails);
          }
+        // Add request/response details into system-out so they are available in the JUnit XML import
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("ResponseCode: ").append(safe(jtlRecord.getResponseCode())).append("\n");
+            sb.append("ResponseMessage: ").append(safe(jtlRecord.getResponseMessage())).append("\n\n");
+            sb.append("Request Headers:\n").append(safe(jtlRecord.getRequestHeaders())).append("\n\n");
+            sb.append("Request Body:\n").append(safe(jtlRecord.getRequestBody())).append("\n\n");
+            sb.append("Response Headers:\n").append(safe(jtlRecord.getResponseHeaders())).append("\n\n");
+            sb.append("Response Body:\n").append(safe(jtlRecord.getResponseBody())).append("\n");
+
+            Element systemOut = doc.createElement("system-out");
+            systemOut.appendChild(doc.createCDATASection(sb.toString()));
+            testCase.appendChild(systemOut);
+        } catch (Exception e) {
+            logger.debug("Failed to attach request/response to junit testcase for {}", jtlRecord.getLabel(), e);
+        }
         rootElement.appendChild(testCase);
         logger.debug("Written test case: {}", jtlRecord.getLabel());
         logger.debug("Appended the test case to rootElement" );
+    }
+
+    private String safe(String s) {
+        return s == null ? "" : s;
     }
 
 

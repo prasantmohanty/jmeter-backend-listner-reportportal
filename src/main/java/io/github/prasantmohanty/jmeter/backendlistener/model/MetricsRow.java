@@ -42,7 +42,7 @@ public class MetricsRow {
   private SampleResult sampleResult;
 
   //private String kafkaTimestamp;
-  private int ciBuildNumber;
+  private String ciBuildNumber;
   private HashMap<String, Object> metricsMap;
   private Set<String> fields;
   //private boolean allReqHeaders;
@@ -51,7 +51,7 @@ public class MetricsRow {
       SampleResult sr,
       //String testMode,
       //String timeStamp,
-      int buildNumber,
+      String buildNumber,
       //boolean parseReqHeaders,
       //boolean parseResHeaders,
       Set<String> fields) {
@@ -190,7 +190,7 @@ public class MetricsRow {
   private void addElapsedTime(SimpleDateFormat sdf) {
     Date elapsedTime;
 
-    if (this.ciBuildNumber != 0) {
+    if (this.ciBuildNumber != null && !this.ciBuildNumber.trim().equals("")) {
       elapsedTime = getElapsedTime(true);
       addFilteredMetricToMetricsMap("BuildNumber", this.ciBuildNumber);
 
