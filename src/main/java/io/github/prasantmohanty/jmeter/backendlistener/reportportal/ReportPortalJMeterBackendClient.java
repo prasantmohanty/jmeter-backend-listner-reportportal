@@ -167,20 +167,24 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
     }
 
     try {
-      logger.debug("Publishing " + this.publisher.getListSize() + " metrics to report portal.");
-      this.publisher.publishMetrics();
+      // Do not publish on every sample batch. Collect metrics for the whole test and
+      // publish them once on teardown to avoid creating multiple launches in ReportPortal.
+      logger.debug("Collected " + this.publisher.getListSize() + " metrics (deferring publish until teardown).");
     } catch (Exception e) {
       logger.error("Error occurred while publishing to report portal.", e);
     } finally {
-      logger.debug("Clearing report portal metrics list.");
-      this.publisher.clearList();
+      // Do not clear here; keep accumulated metrics until teardownTest triggers the single import.
     }
   }
 
   @Override
   public void teardownTest(BackendListenerContext context) throws Exception {
     if (this.publisher.getListSize() > 0) {
+      logger.debug("Publishing accumulated " + this.publisher.getListSize() + " metrics to ReportPortal at teardown.");
       this.publisher.publishMetrics();
+      // clear after publishing so repeated runs or multiple teardown calls don't resend the same data
+      this.publisher.clearList();
+      logger.debug("Cleared accumulated metrics after publish.");
     }
     //this.publisher.closeProducer();
     super.teardownTest(context);
