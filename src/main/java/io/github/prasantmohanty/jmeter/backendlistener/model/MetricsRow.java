@@ -41,48 +41,50 @@ public class MetricsRow {
   private static final Logger logger = LoggerFactory.getLogger(MetricsRow.class);
   private SampleResult sampleResult;
 
-  //private String kafkaTimestamp;
   private String ciBuildNumber;
   private HashMap<String, Object> metricsMap;
   private Set<String> fields;
-  //private boolean allReqHeaders;
-  //private boolean allResHeaders;
-  public MetricsRow(
-      SampleResult sr,
-      //String testMode,
-      //String timeStamp,
-      String buildNumber,
-      //boolean parseReqHeaders,
-      //boolean parseResHeaders,
-      Set<String> fields) {
+
+  /**
+   * Create a MetricsRow for the given SampleResult.
+   *
+   * @param sr the JMeter sample result to extract metrics from
+   * @param buildNumber optional CI build number (may be null or empty)
+   * @param fields set of fields to include; empty set means include all
+   */
+  public MetricsRow(SampleResult sr, String buildNumber, Set<String> fields) {
     this.sampleResult = sr;
-    //this.kafkaTestMode = testMode.trim();
-    //this.kafkaTimestamp = timeStamp.trim();
     this.ciBuildNumber = buildNumber;
     this.metricsMap = new HashMap<>();
-    //this.allReqHeaders = parseReqHeaders;
-    //this.allResHeaders = parseResHeaders;
     this.fields = fields;
   }
 
   @Override
+  /**
+   * Human-readable representation of the metrics row used for debug logging.
+   *
+   * @return String summary of this MetricsRow
+   */
   public String toString() {
     StringBuilder sb = new StringBuilder(512);
     sb.append("MetricsRow{");
-    //sb.append("kafkaTestMode=").append(kafkaTestMode).append(", ");
-    //sb.append("kafkaTimestamp=").append(kafkaTimestamp).append(", ");
     sb.append("ciBuildNumber=").append(ciBuildNumber).append(", ");
-    //sb.append("allReqHeaders=").append(allReqHeaders).append(", ");
-    //sb.append("allResHeaders=").append(allResHeaders).append(", ");
+    // sb.append("allReqHeaders=").append(allReqHeaders).append(", ");
+    // sb.append("allResHeaders=").append(allResHeaders).append(", ");
     sb.append("fields=").append(fields != null ? fields.toString() : "null").append(", ");
 
     sb.append("sampleResultSummary=");
     if (sampleResult != null) {
-      sb.append("{label=").append(sampleResult.getSampleLabel())
-          .append(", thread=").append(sampleResult.getThreadName())
-          .append(", responseCode=").append(sampleResult.getResponseCode())
-          .append(", success=").append(sampleResult.isSuccessful())
-          .append(", time=").append(sampleResult.getTime())
+      sb.append("{label=")
+          .append(sampleResult.getSampleLabel())
+          .append(", thread=")
+          .append(sampleResult.getThreadName())
+          .append(", responseCode=")
+          .append(sampleResult.getResponseCode())
+          .append(", success=")
+          .append(sampleResult.isSuccessful())
+          .append(", time=")
+          .append(sampleResult.getTime())
           .append("}, ");
     } else {
       sb.append("null, ");
@@ -114,7 +116,6 @@ public class MetricsRow {
    */
   public Map<String, Object> getRowAsMap(BackendListenerContext context, String servicePrefixName)
       throws UnknownHostException {
-    //SimpleDateFormat sdf = new SimpleDateFormat(this.kafkaTimestamp);
     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     // add all the default SampleResult parameters
     addFilteredMetricToMetricsMap("AllThreads", this.sampleResult.getAllThreads());
@@ -143,17 +144,19 @@ public class MetricsRow {
         "Timestamp", sdf.format(new Date(this.sampleResult.getTimeStamp())));
     addFilteredMetricToMetricsMap("InjectorHostname", InetAddress.getLocalHost().getHostName());
 
-    
     addDetails();
     addAssertions();
     addElapsedTime(sdf);
     addCustomFields(context, servicePrefixName);
-    //parseHeadersAsJsonProps(this.allReqHeaders, this.allResHeaders);
+    // parseHeadersAsJsonProps(this.allReqHeaders, this.allResHeaders);
 
     return this.metricsMap;
   }
 
-  /** This method adds all the assertions for the current sampleResult */
+  /**
+   * Collects assertion results from the sample and adds them to the metrics map. The added keys
+   * are: AssertionResults, FailureMessage and Success.
+   */
   private void addAssertions() {
     AssertionResult[] assertionResults = this.sampleResult.getAssertionResults();
     if (assertionResults != null) {
@@ -231,7 +234,7 @@ public class MetricsRow {
     }
   }
 
-  /** Method that adds the request and response's body/headers */
+  /** Adds request and response detail metrics such as headers, body and message. */
   private void addDetails() {
     addFilteredMetricToMetricsMap("RequestHeaders", this.sampleResult.getRequestHeaders());
     addFilteredMetricToMetricsMap("RequestBody", this.sampleResult.getSamplerData());
@@ -242,8 +245,8 @@ public class MetricsRow {
 
   /**
    * This method will parse the headers and look for custom variables passed through as header. It
-   * can also separate all headers into different Kafka document properties by passing "true". This
-   * is a work-around the native behaviour of JMeter where variables are not accessible within the
+   * can also separate all headers into different document properties by passing "true". This is a
+   * work-around the native behaviour of JMeter where variables are not accessible within the
    * backend listener.
    *
    * @param allReqHeaders boolean to determine if the user wants to separate ALL request headers
@@ -269,11 +272,7 @@ public class MetricsRow {
 
         // if not all req headers and header contains special X-tag
         if (header.length > 1) {
-          if (header[0].startsWith("X-kafka-backend")) {
-            this.metricsMap.put(header[0].replaceAll("kafka-", "").trim(), header[1].trim());
-          } else {
-            this.metricsMap.put(header[0].replaceAll("kafka-", "").trim(), header[1].trim());
-          }
+          this.metricsMap.put(header[0].trim(), header[1].trim());
         }
       }
     }

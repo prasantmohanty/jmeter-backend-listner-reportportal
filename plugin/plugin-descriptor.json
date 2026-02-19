@@ -1,0 +1,8 @@
+{
+  "id": "reportportal-backend-listener",
+  "name": "ReportPortal Backend Listener",
+  "description": "A backend listener that sends  test results to ReportPortal.",
+  "vendor": "prasantmohanty",
+  "version": "1.0.0",
+  "jmeter_min": "5.6"
+}

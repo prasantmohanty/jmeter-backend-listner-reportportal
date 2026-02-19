@@ -68,9 +68,7 @@ public class TestMetricsRow {
     sampleResult.sampleEnd();
 
     String servicePrefixName = "reportportal.";
-    MetricsRow metricsRow =
-        new MetricsRow(
-            sampleResult,  "0",  new HashSet<>());
+    MetricsRow metricsRow = new MetricsRow(sampleResult, "0", new HashSet<>());
     Map<String, Object> mapMetric = metricsRow.getRowAsMap(context, servicePrefixName);
     assertNotNull(mapMetric);
     assertNotNull(mapMetric.get("SampleLabel"));
@@ -93,9 +91,7 @@ public class TestMetricsRow {
     sampleResult.sampleEnd();
 
     String servicePrefixName = "reportportal.";
-    MetricsRow metricsRow =
-        new MetricsRow(
-            sampleResult, "1",  new HashSet<>());
+    MetricsRow metricsRow = new MetricsRow(sampleResult, "1", new HashSet<>());
     Map<String, Object> mapMetric = metricsRow.getRowAsMap(context, servicePrefixName);
     assertNotNull(mapMetric);
     assertNotNull(mapMetric.get("SampleLabel"));

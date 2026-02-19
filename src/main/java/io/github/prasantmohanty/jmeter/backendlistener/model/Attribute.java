@@ -1,4 +1,3 @@
-
 package io.github.prasantmohanty.jmeter.backendlistener.model;
 
 public class Attribute {
@@ -9,25 +8,32 @@ public class Attribute {
   public Attribute() {}
 
   public Attribute(String key, String value, Boolean system) {
-    this.key = key; this.value = value; this.system = system;
+    this.key = key;
+    this.value = value;
+    this.system = system;
   }
 
-  public String getKey() { 
-    return key; 
+  public String getKey() {
+    return key;
   }
+
   public void setKey(String key) {
-     this.key = key; 
-    }
-  public String getValue() { 
-    return value; 
+    this.key = key;
   }
-  public void setValue(String value) { 
-    this.value = value; 
+
+  public String getValue() {
+    return value;
   }
-  public Boolean getSystem() { 
-    return system; 
+
+  public void setValue(String value) {
+    this.value = value;
   }
-  public void setSystem(Boolean system) { 
-    this.system = system; 
+
+  public Boolean getSystem() {
+    return system;
+  }
+
+  public void setSystem(Boolean system) {
+    this.system = system;
   }
 }

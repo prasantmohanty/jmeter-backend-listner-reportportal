@@ -1,30 +1,29 @@
 package io.github.prasantmohanty.jmeter.backendlistener.reportportal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import okhttp3.*;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-
-import io.github.prasantmohanty.jmeter.backendlistener.model.LaunchImportRq;
-
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.prasantmohanty.jmeter.backendlistener.model.LaunchImportRq;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Objects;
 import java.util.Map;
-
+import java.util.Objects;
+import okhttp3.*;
 
 public class ReportPortalImportAPIClient {
-  private final HttpUrl apiBase;           // e.g., https://rp.example.com/api
-  private final String projectName;        // e.g., "my_project"
-  private final String bearerToken;        // JWT or API Key
-  private final String testName;         // e.g., "JMeter Test"
-  private final String buildNumber;      // e.g., "123"
+  private final HttpUrl apiBase; // e.g., https://rp.example.com/api
+  private final String projectName; // e.g., "my_project"
+  private final String bearerToken; // JWT or API Key
+  private final String testName; // e.g., "JMeter Test"
+  private final String buildNumber; // e.g., "123"
 
   private final OkHttpClient http;
-  private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
-                                         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ReportPortalImportAPIClient.class);
+  private final ObjectMapper mapper =
+      new ObjectMapper()
+          .registerModule(new JavaTimeModule())
+          .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+  private static final org.slf4j.Logger logger =
+      org.slf4j.LoggerFactory.getLogger(ReportPortalImportAPIClient.class);
 
   public ReportPortalImportAPIClient(Map<String, String> reportPortalConfigs) {
 
@@ -36,13 +35,19 @@ public class ReportPortalImportAPIClient {
 
     this.apiBase = HttpUrl.parse(reportPortalConfigs.get("ReportPortalAPIBase"));
     if (this.apiBase == null) throw new IllegalArgumentException("Invalid apiBaseUrl");
-  
+
     this.projectName = reportPortalConfigs.get("ProjectName");
     this.bearerToken = reportPortalConfigs.get("BearerToken");
     this.testName = reportPortalConfigs.get("TestName");
     this.buildNumber = reportPortalConfigs.get("BuildNumber");
-    
-    logger.debug("Initialized ReportPortalImportAPIClient for project: " + this.projectName + ", testName: " + this.testName + ", build: " + this.buildNumber);
+
+    logger.debug(
+        "Initialized ReportPortalImportAPIClient for project: "
+            + this.projectName
+            + ", testName: "
+            + this.testName
+            + ", build: "
+            + this.buildNumber);
 
     this.http = new OkHttpClient();
   }
@@ -59,23 +64,23 @@ public class ReportPortalImportAPIClient {
 
     RequestBody jsonPart = RequestBody.create(rqJson, MediaType.parse("application/json"));
 
-    MultipartBody multipart = new MultipartBody.Builder()
-        .setType(MultipartBody.FORM)
-        .addFormDataPart("file", junitXmlOrZip.getName(), fileBody)
-        .addFormDataPart("launchImportRq", null, jsonPart)
-        .build();
+    MultipartBody multipart =
+        new MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", junitXmlOrZip.getName(), fileBody)
+            .addFormDataPart("launchImportRq", null, jsonPart)
+            .build();
 
-    HttpUrl url = apiBase
-        .newBuilder()
-        .addPathSegments("v1/plugin/" + projectName + "/junit/import")
-        .build();
+    HttpUrl url =
+        apiBase.newBuilder().addPathSegments("v1/plugin/" + projectName + "/junit/import").build();
 
-    Request req = new Request.Builder()
-        .url(url)
-        .post(multipart)
-        .addHeader("Authorization", "Bearer " + bearerToken)
-        .addHeader("Accept", "application/json")
-        .build();
+    Request req =
+        new Request.Builder()
+            .url(url)
+            .post(multipart)
+            .addHeader("Authorization", "Bearer " + bearerToken)
+            .addHeader("Accept", "application/json")
+            .build();
 
     try (Response resp = http.newCall(req).execute()) {
       if (!resp.isSuccessful()) {
@@ -98,10 +103,11 @@ public class ReportPortalImportAPIClient {
   public boolean ping() {
     try {
       // “GET /v1” is not a standard health endpoint; adapt to your environment if you have one.
-      Request req = new Request.Builder()
-          .url(apiBase.newBuilder().addPathSegment("v1").build())
-          .addHeader("Authorization", "Bearer " + bearerToken)
-          .build();
+      Request req =
+          new Request.Builder()
+              .url(apiBase.newBuilder().addPathSegment("v1").build())
+              .addHeader("Authorization", "Bearer " + bearerToken)
+              .build();
       try (Response resp = http.newCall(req).execute()) {
         return resp.code() < 500;
       }
