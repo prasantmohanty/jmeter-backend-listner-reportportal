@@ -72,8 +72,7 @@ class ReportPortalMetricPublisher {
 
   public void publishMetrics() {
 
-    long time = System.currentTimeMillis();
-    logger.debug("####Number of metrics to publish: " + this.metricList.size());
+     logger.debug("####Number of metrics to publish: " + this.metricList.size());
 
     String timestamp =
         java.time.LocalDateTime.now()

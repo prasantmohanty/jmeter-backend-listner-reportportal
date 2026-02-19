@@ -26,7 +26,11 @@ public class JtlFileReader {
 
   public void parseCsvJtl(String path, JtlRecordProcessor recordProcessor) throws IOException {
     try (Reader in = new FileReader(path)) {
-      Iterable<CSVRecord> records = CSVFormat.RFC4180.withFirstRecordAsHeader().parse(in);
+    Iterable<CSVRecord> records = CSVFormat.RFC4180.builder()
+      .setHeader()
+      .setSkipHeaderRecord(true)
+      .build()
+      .parse(in);
       for (CSVRecord record : records) {
         String label = record.get(JMeterJtlHeader.label);
         boolean success = Boolean.parseBoolean(record.get(JMeterJtlHeader.success));
