@@ -3,6 +3,19 @@
  
 A JMeter plug-in that enables you to send test results to a Report Portal server.
 
+## What is Report Portal? 
+
+ReportPortal is a TestOps service, that provides increased capabilities to speed up results analysis and reporting through the use of built-in analytic features.
+
+Some of the benefits of using Report Portal 
+
+- Real-time integration provides businesses the ability to manage and track execution status directly from the ReportPortal.
+- ReportPortal provides enhanced capabilities along with auto-results analysis by leveraging historical data of test execution
+- Our test report dashboard also gives you the ability to collaboratively analyze the test automation results
+
+Find out more on this link 
+https://reportportal.io/docs/
+
 ## Overview
 
 ### Description
