@@ -16,6 +16,10 @@ Some of the benefits of using Report Portal
 Find out more on this link 
 https://reportportal.io/docs/
 
+## How to install Report Portal locally ? 
+Refer the below documentation link to download the images and install through supported container management 
+https://reportportal.io/installation
+
 ## Overview
 
 ### Description
