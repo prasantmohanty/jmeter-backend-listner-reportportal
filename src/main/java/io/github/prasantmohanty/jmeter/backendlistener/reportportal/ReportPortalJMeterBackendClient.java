@@ -56,13 +56,28 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
 
   private static final String REPORTPORTAL_TEST_NAME = "TestName";
 
+  private static final String REPORTPORTAL_HTTP_TIMEOUT_MS = "HttpTimeoutMs";
+
+  private static final String REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS = "HttpConnectTimeoutMs";
+
+  private static final String REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS = "HttpWriteTimeoutMs";
+
+  private static final String REPORTPORTAL_HTTP_READ_TIMEOUT_MS = "HttpReadTimeoutMs";
+
   private static final Map<String, String> DEFAULT_ARGS = new LinkedHashMap<>();
 
   static {
-    DEFAULT_ARGS.put(REPORTPORTAL_API_BASE, "http://localhost:8080/api/v1");
+    // IMPORTANT: ReportPortalAPIBase should be the base URL without /v1
+    // Correct:   http://reportportal.example.com/api
+    // Wrong:     http://reportportal.example.com/api/v1  (causes double v1 in path)
+    DEFAULT_ARGS.put(REPORTPORTAL_API_BASE, "http://localhost:8080/api");
     DEFAULT_ARGS.put(REPORTPORTAL_PROJECT_NAME, "MyProject");
     DEFAULT_ARGS.put(REPORTPORTAL_BEARRER_TOKEN_STRING, "my-token");
     DEFAULT_ARGS.put(REPORTPORTAL_TEST_NAME, "JMeter Test");
+    DEFAULT_ARGS.put(REPORTPORTAL_HTTP_TIMEOUT_MS, "180000");
+    DEFAULT_ARGS.put(REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS, "180000");
+    DEFAULT_ARGS.put(REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS, "180000");
+    DEFAULT_ARGS.put(REPORTPORTAL_HTTP_READ_TIMEOUT_MS, "180000");
     DEFAULT_ARGS.put(BUILD_NUMBER, "0");
   }
 
@@ -104,7 +119,28 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
     reportPortalConfigs.put(
         REPORTPORTAL_BEARRER_TOKEN_STRING, context.getParameter(REPORTPORTAL_BEARRER_TOKEN_STRING));
     reportPortalConfigs.put(REPORTPORTAL_TEST_NAME, context.getParameter(REPORTPORTAL_TEST_NAME));
+    reportPortalConfigs.put(
+      REPORTPORTAL_HTTP_TIMEOUT_MS, context.getParameter(REPORTPORTAL_HTTP_TIMEOUT_MS));
+    reportPortalConfigs.put(
+      REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS,
+      context.getParameter(REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS));
+    reportPortalConfigs.put(
+      REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS,
+      context.getParameter(REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS));
+    reportPortalConfigs.put(
+      REPORTPORTAL_HTTP_READ_TIMEOUT_MS,
+      context.getParameter(REPORTPORTAL_HTTP_READ_TIMEOUT_MS));
     reportPortalConfigs.put(BUILD_NUMBER, context.getParameter(BUILD_NUMBER));
+    
+    // Validate required configuration
+    String apiBase = reportPortalConfigs.get(REPORTPORTAL_API_BASE);
+    if (apiBase == null || apiBase.trim().isEmpty()) {
+      throw new IllegalArgumentException("ReportPortalAPIBase is required but not configured");
+    }
+    if (apiBase.endsWith("/v1")) {
+      logger.warn("WARNING: ReportPortalAPIBase ends with /v1 which will cause incorrect URL paths.");
+      logger.warn("Remove /v1 from the end of ReportPortalAPIBase (e.g., use http://server/api instead of http://server/api/v1)");
+    }
 
     this.filters = new HashSet<>();
     this.fields = new HashSet<>();

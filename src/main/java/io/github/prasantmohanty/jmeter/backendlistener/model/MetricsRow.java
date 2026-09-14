@@ -132,8 +132,10 @@ public class MetricsRow {
     addFilteredMetricToMetricsMap("ResponseTime", this.sampleResult.getTime());
     addFilteredMetricToMetricsMap("SampleCount", this.sampleResult.getSampleCount());
     addFilteredMetricToMetricsMap("SampleLabel", this.sampleResult.getSampleLabel());
+    addFilteredMetricToMetricsMap("SampleSuccessful", this.sampleResult.isSuccessful());
     addFilteredMetricToMetricsMap("ThreadName", this.sampleResult.getThreadName());
-    addFilteredMetricToMetricsMap("URL", this.sampleResult.getURL());
+    addFilteredMetricToMetricsMap(
+      "URL", this.sampleResult.getURL() == null ? "" : this.sampleResult.getURL().toString());
     addFilteredMetricToMetricsMap("ResponseCode", this.sampleResult.getResponseCode());
     addFilteredMetricToMetricsMap("TestStartTime", JMeterContextService.getTestStartTime());
     addFilteredMetricToMetricsMap(

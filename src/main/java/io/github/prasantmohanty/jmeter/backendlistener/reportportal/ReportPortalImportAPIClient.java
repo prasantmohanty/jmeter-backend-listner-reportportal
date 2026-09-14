@@ -56,8 +56,18 @@ public class ReportPortalImportAPIClient {
     if (junitXmlOrZip == null || !junitXmlOrZip.exists()) {
       throw new IllegalArgumentException("Input file does not exist: " + junitXmlOrZip);
     }
+    if (junitXmlOrZip.length() == 0) {
+      throw new IllegalArgumentException("Input file is empty: " + junitXmlOrZip.getAbsolutePath());
+    }
+    
+    // Validate required fields in LaunchImportRq
+    if (rq.getName() == null || rq.getName().trim().isEmpty()) {
+      throw new IllegalArgumentException("LaunchImportRq.name is required but was empty or null");
+    }
+    
     String contentType = guessContentType(junitXmlOrZip.getName());
     String rqJson = mapper.writeValueAsString(rq);
+    logger.debug("Sending LaunchImportRq JSON: " + rqJson);
 
     MediaType fileMedia = MediaType.parse(contentType);
     RequestBody fileBody = RequestBody.create(junitXmlOrZip, fileMedia);
@@ -71,8 +81,12 @@ public class ReportPortalImportAPIClient {
             .addFormDataPart("launchImportRq", null, jsonPart)
             .build();
 
+    // NOTE: apiBase should NOT contain /v1 path segment
+    // If apiBase is "http://server/api" then this becomes "http://server/api/v1/plugin/..."
+    // If apiBase is "http://server/api/v1" this would incorrectly become "http://server/api/v1/v1/plugin/..."
     HttpUrl url =
         apiBase.newBuilder().addPathSegments("v1/plugin/" + projectName + "/junit/import").build();
+    logger.debug("Constructed ReportPortal import URL: " + url);
 
     Request req =
         new Request.Builder()
@@ -84,8 +98,13 @@ public class ReportPortalImportAPIClient {
 
     try (Response resp = http.newCall(req).execute()) {
       if (!resp.isSuccessful()) {
-        String body = (resp.body() != null) ? resp.body().string() : "";
-        throw new IOException("Import failed: HTTP " + resp.code() + " - " + body);
+        String body = (resp.body() != null) ? resp.body().string() : "(empty response body)";
+        String errorMsg = "Import failed: HTTP " + resp.code() + "\n"
+            + "URL: " + url + "\n"
+            + "Request file: " + junitXmlOrZip.getAbsolutePath() + "\n"
+            + "Response body: " + body;
+        logger.error(errorMsg);
+        throw new IOException(errorMsg);
       }
       return (resp.body() != null) ? resp.body().string() : "";
     }

@@ -18,14 +18,25 @@ package io.github.prasantmohanty.jmeter.backendlistener.reportportal;
 
 import io.github.prasantmohanty.jmeter.backendlistener.junit.transform.DomXmlJUnitReportWriter;
 import io.github.prasantmohanty.jmeter.backendlistener.junit.transform.JtlRecord;
+import io.github.prasantmohanty.jmeter.backendlistener.model.Attribute;
 import io.github.prasantmohanty.jmeter.backendlistener.model.LaunchImportRq;
 import java.io.File;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,11 +45,15 @@ import org.slf4j.LoggerFactory;
  * A class responsible for publishing metrics to Report Portal.
  *
  * @author prasantmohanty
- * @since 20190624
+ * @since 20250624
  */
 class ReportPortalMetricPublisher {
 
   private static final Logger logger = LoggerFactory.getLogger(ReportPortalMetricPublisher.class);
+  private static final int MAX_FIELD_LOG_LENGTH = 12000;
+  private static final int MAX_SUMMARY_LOG_LENGTH = 700;
+  private static final DateTimeFormatter SAMPLE_TIME_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private Map<String, String> reportPortalConfigs = new HashMap<>();
   private List<String> metricList;
@@ -72,103 +87,12 @@ class ReportPortalMetricPublisher {
 
   public void publishMetrics() {
 
-     logger.debug("####Number of metrics to publish: " + this.metricList.size());
-
-    String timestamp =
-        java.time.LocalDateTime.now()
-            .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-    String junitReportFile =
-        java.nio.file.Paths.get("")
-            .toAbsolutePath()
-            .resolve("junit" + timestamp + ".xml")
-            .toString();
-
-    logger.debug("####JUnit report file: " + junitReportFile);
-
-    // Determine a sensible test suite name to embed in the JUnit XML.
-    // Priority: reportPortalConfigs.TestSuiteName -> first metric's ThreadName ->
-    // reportPortalConfigs.TestName -> "no_name"
-    String testSuiteName = null;
+    logger.debug("####Number of metrics to publish: " + this.metricList.size());  
     try {
-      testSuiteName = getReportPortalConfigs().get("TestSuiteName");
-      if (testSuiteName == null || testSuiteName.trim().isEmpty()) {
-        if (this.metricList != null && this.metricList.size() > 0) {
-          com.fasterxml.jackson.databind.ObjectMapper mapper =
-              new com.fasterxml.jackson.databind.ObjectMapper();
-          com.fasterxml.jackson.databind.JsonNode first = mapper.readTree(this.metricList.get(0));
-          testSuiteName = first.path("ThreadName").asText();
-        }
-      }
+      publishToReportPortal();
+      logger.debug("Published report to ReportPortal");
     } catch (Exception e) {
-      logger.debug("Unable to derive testSuiteName from first metric", e);
-    }
-    if (testSuiteName == null || testSuiteName.trim().isEmpty()) {
-      testSuiteName = getReportPortalConfigs().get("TestName");
-    }
-    if (testSuiteName == null || testSuiteName.trim().isEmpty()) {
-      testSuiteName = "no_name";
-    }
-
-    final DomXmlJUnitReportWriter writer =
-        new DomXmlJUnitReportWriter(junitReportFile, testSuiteName);
-
-    for (int i = 0; i < this.metricList.size(); i++) {
-      String metricJson = this.metricList.get(i);
-      logger.debug("####Publishing metric " + (i + 1) + ": " + metricJson);
-      try {
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-            new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(metricJson);
-        logger.debug("Parsed JSON node: " + node.toPrettyString());
-
-        String sampleLabel = node.path("SampleLabel").asText("");
-        String failureMessage = node.path("FailureMessage").asText("");
-        String responseCode = node.path("ResponseCode").asText("");
-        String responseMessage = node.path("ResponseMessage").asText("");
-        String requestBody = node.path("RequestBody").asText("");
-        String requestHeaders = node.path("RequestHeaders").asText("");
-        String responseBody = node.path("ResponseBody").asText("");
-        String responseHeaders = node.path("ResponseHeaders").asText("");
-
-        logger.debug(
-            "Parsed metric: SampleLabel={}, FailureMessage={}, ResponseCode={}, ResponseMessage={}",
-            sampleLabel,
-            failureMessage,
-            responseCode,
-            responseMessage);
-
-        boolean success = isFailureMessageAbsent(failureMessage);
-        logger.debug("Determined success status: {}", success);
-
-        writer.write(
-            new JtlRecord(
-                sampleLabel,
-                success,
-                responseMessage,
-                failureMessage,
-                requestHeaders,
-                requestBody,
-                responseHeaders,
-                responseBody,
-                responseCode));
-        logger.debug("Successfully wrote metric to JUnit report: {}", junitReportFile);
-
-        // use sampleLabel, failureMessage, responseCode, responseMessage as needed
-      } catch (Exception e) {
-        logger.error("Failed to write metric JSON: {}", metricJson, e);
-      }
-    }
-    try {
-      writer.close();
-      logger.debug("Closed JUnit report writer for file: {}", junitReportFile);
-    } catch (java.io.IOException e) {
-      logger.error("Failed to close JUnit report writer for file: {}", junitReportFile, e);
-    }
-    try {
-      publishToReportPortal(junitReportFile);
-      logger.debug("Published JUnit report to ReportPortal: {}", junitReportFile);
-    } catch (Exception e) {
-      logger.error("Failed to publish JUnit report to ReportPortal: {}", junitReportFile, e);
+      logger.error("Failed to publish report to ReportPortal", e);
     }
   }
 
@@ -188,25 +112,20 @@ class ReportPortalMetricPublisher {
     return normalized.isEmpty();
   }
 
-  public void publishToReportPortal(String junitReportFile) {
+  public void publishToReportPortal() {
+    
+    // New v2 API flow: create a launch and create items/logs via /api/v2 endpoints
+    logger.debug("Publishing metrics via ReportPortal v2 API");
+    ReportPortalAPIClient apiClient = new ReportPortalAPIClient(getReportPortalConfigs());
 
-    logger.debug("Preparing to publish JUnit report to ReportPortal: " + junitReportFile);
-    File file = new File(junitReportFile);
-    String description = "Imported via API";
-    ReportPortalImportAPIClient client = new ReportPortalImportAPIClient(getReportPortalConfigs());
-    logger.debug(
-        "Created ReportPortalImportClient for project: "
-            + getReportPortalConfigs().get("ProjectName"));
-
-    LaunchImportRq rq =
+    LaunchImportRq launchRq =
         new LaunchImportRq()
             .setName(getReportPortalConfigs().get("TestName"))
-            .setDescription(description)
-            .setStartTime(Instant.now())
+            .setDescription("Imported via API")
+        .setStartTime(resolveLaunchStartTime())
             .addAttribute("origin", "bulk-import", false)
-            .addAttribute("framework", "junit", false);
+            .addAttribute("framework", "metrics", false);
 
-    // Attach the testsuite name as an attribute so ReportPortal can index it with the launch
     try {
       String suiteAttr =
           (getReportPortalConfigs().get("TestSuiteName") != null
@@ -214,22 +133,519 @@ class ReportPortalMetricPublisher {
               ? getReportPortalConfigs().get("TestSuiteName")
               : "";
       if (suiteAttr.isEmpty()) {
-        // derive from generated junit file's root attribute which we set earlier (testSuiteName)
-        // we can reuse the TestName as a sensible fallback
         suiteAttr = getReportPortalConfigs().get("TestName");
       }
       if (suiteAttr != null && !suiteAttr.trim().isEmpty()) {
-        rq.addAttribute("testsuite", suiteAttr, false);
+        launchRq.addAttribute("testsuite", suiteAttr, false);
       }
     } catch (Exception e) {
       logger.debug("Failed to add testsuite attribute to LaunchImportRq", e);
     }
 
+    String launchId = null;
     try {
-      String response = client.importLaunch(file, rq);
-      logger.debug("Response from ReportPortal: " + response);
+      launchId = apiClient.startLaunch(launchRq);
+      logger.debug("Started launch in ReportPortal v2 with id/uuid: " + launchId);
     } catch (Exception e) {
-      logger.error("Failed to prepare LaunchImportRq", e);
+      logger.error("Failed to start ReportPortal launch via v2 API", e);
+      return;
+    }
+
+    String suiteName = resolveSuiteName();
+    String suiteItemId = null;
+    Instant suiteStart = resolveLaunchStartTime();
+    Instant suiteEnd = resolveLaunchEndTime();
+    try {
+      List<Attribute> suiteAttrs = new ArrayList<>();
+      suiteAttrs.add(new Attribute("layer", "suite", false));
+      if (safe(getReportPortalConfigs().get("BuildNumber")).length() > 0) {
+        suiteAttrs.add(
+            new Attribute("build", getReportPortalConfigs().get("BuildNumber"), false));
+      }
+      suiteItemId =
+          apiClient.startTestItem(
+              launchId,
+              suiteName,
+              "JMeter suite container",
+              "suite",
+              suiteStart,
+              "jmeter.suite." + normalizeForCodeRef(suiteName),
+              buildUniqueId("suite", suiteName, suiteStart.toString()),
+              suiteAttrs,
+              Collections.emptyList());
+      logger.debug("Created suite item: {}", suiteItemId);
+    } catch (Exception e) {
+      logger.error("Failed to create suite item; will continue with flat test item reporting", e);
+    }
+
+    boolean anyFailure = false;
+    int suiteTotal = 0;
+    int suitePassed = 0;
+    int suiteFailed = 0;
+    int suiteSkipped = 0;
+    int suiteErrors = 0;
+
+    // For each metric create a test item, optionally log failure, then finish the item
+    for (int i = 0; i < this.metricList.size(); i++) {
+      String metricJson = this.metricList.get(i);
+      try {
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(metricJson);
+
+        String sampleLabel = node.path("SampleLabel").asText("");
+        String failureMessage = node.path("FailureMessage").asText("");
+        String responseMessage = node.path("ResponseMessage").asText("");
+        String requestHeaders = node.path("RequestHeaders").asText("");
+        String requestBody = node.path("RequestBody").asText("");
+        String responseHeaders = node.path("ResponseHeaders").asText("");
+        String responseBody = node.path("ResponseBody").asText("");
+        String responseCode = node.path("ResponseCode").asText("");
+        String requestUrl = safe(node.path("URL").asText(""));
+        String requestParameters = extractRequestParameters(requestUrl, requestBody);
+        String assertionErrors = extractAssertionErrors(node);
+        int totalCount = node.path("SampleCount").asInt(1);
+        int failedCount = node.path("ErrorCount").asInt(0);
+        boolean hasSampleSuccessful = node.has("SampleSuccessful") && !node.get("SampleSuccessful").isNull();
+        boolean sampleSuccessful = hasSampleSuccessful && node.get("SampleSuccessful").asBoolean(true);
+        boolean hasSuccess = node.has("Success") && !node.get("Success").isNull();
+        boolean successFromSample = hasSuccess && node.get("Success").asBoolean(true);
+
+        boolean success;
+        if (hasSampleSuccessful) {
+          success = sampleSuccessful;
+        } else if (hasSuccess) {
+          success = successFromSample;
+        } else {
+          success = isFailureMessageAbsent(failureMessage);
+        }
+        if (failedCount > 0) {
+          success = false;
+        }
+        if (!success && failedCount == 0) {
+          failedCount = 1;
+        }
+        if (totalCount < 1) {
+          totalCount = 1;
+        }
+        int successCount = Math.max(totalCount - failedCount, 0);
+        Instant itemStart = parseSampleInstant(node.path("SampleStartTime").asText(""), Instant.now());
+        Instant itemEnd = parseSampleInstant(node.path("SampleEndTime").asText(""), itemStart);
+        if (itemEnd.isBefore(itemStart)) {
+          itemEnd = itemStart;
+        }
+        String itemStatus = toReportPortalStatus(success, responseCode, failureMessage);
+        anyFailure =
+          anyFailure
+            || "failed".equals(itemStatus)
+            || "interrupted".equals(itemStatus)
+            || "cancelled".equals(itemStatus)
+            || "stopped".equals(itemStatus);
+
+        String itemId = null;
+        try {
+          String codeRef =
+              safe(node.path("URL").asText(""));
+          if (codeRef.isEmpty()) {
+            codeRef = "jmeter.test." + normalizeForCodeRef(sampleLabel);
+          }
+          List<ReportPortalAPIClient.ItemParameter> parameters = new ArrayList<>();
+          String threadName = safe(node.path("ThreadName").asText(""));
+          if (!threadName.isEmpty()) {
+            parameters.add(new ReportPortalAPIClient.ItemParameter("thread", threadName));
+          }
+          if (!responseCode.isEmpty()) {
+            parameters.add(new ReportPortalAPIClient.ItemParameter("responseCode", responseCode));
+          }
+          List<Attribute> itemAttrs = new ArrayList<>();
+          itemAttrs.add(new Attribute("layer", "test", false));
+          if (!responseCode.isEmpty()) {
+            itemAttrs.add(new Attribute("http.code", responseCode, false));
+          }
+          if (failedCount > 0) {
+            itemAttrs.add(new Attribute("failed", String.valueOf(failedCount), false));
+          }
+
+          String uniqueId =
+              buildUniqueId(
+                  "test",
+                  sampleLabel,
+                  safe(node.path("ThreadName").asText("")),
+                  node.path("SampleStartTime").asText(""));
+
+          if (suiteItemId != null && !suiteItemId.trim().isEmpty()) {
+            itemId =
+                apiClient.startChildTestItem(
+                    suiteItemId,
+                    launchId,
+                    sampleLabel,
+                    "JMeter sample",
+                    "step",
+                    itemStart,
+                    codeRef,
+                    uniqueId,
+                    itemAttrs,
+                    parameters);
+          } else {
+            itemId =
+                apiClient.startTestItem(
+                    launchId,
+                    sampleLabel,
+                    "JMeter sample",
+                    "step",
+                    itemStart,
+                    codeRef,
+                    uniqueId,
+                    itemAttrs,
+                    parameters);
+          }
+          logger.debug("Created test item: " + itemId + " for sample: " + sampleLabel);
+        } catch (Exception e) {
+          logger.error("Failed to create test item for sample: " + sampleLabel, e);
+          continue;
+        }
+
+        String detailMessage =
+            buildItemDetailMessage(
+                sampleLabel,
+                success,
+                responseMessage,
+                failureMessage,
+                requestHeaders,
+                requestBody,
+                responseHeaders,
+                responseBody,
+                requestUrl,
+                requestParameters,
+                assertionErrors,
+                responseCode,
+                totalCount,
+                successCount,
+                failedCount);
+        String summaryMessage =
+            buildSummaryMessage(
+                sampleLabel,
+                success,
+                responseCode,
+                responseMessage,
+                failureMessage,
+                totalCount,
+                successCount,
+                failedCount);
+        try {
+          apiClient.log(launchId, itemId, success ? "info" : "error", detailMessage, itemEnd);
+        } catch (Exception e) {
+          logger.warn("Failed to send detail log for item: " + itemId, e);
+          try {
+            apiClient.log(launchId, itemId, success ? "info" : "error", summaryMessage, itemEnd);
+          } catch (Exception summaryEx) {
+            logger.warn("Failed to send summary log for item: " + itemId, summaryEx);
+          }
+        }
+
+        try {
+          apiClient.finishTestItem(launchId, itemId, itemStatus, itemEnd);
+          suiteTotal++;
+          if ("passed".equals(itemStatus)) {
+            suitePassed++;
+          } else if ("skipped".equals(itemStatus)) {
+            suiteSkipped++;
+          } else if ("failed".equals(itemStatus)) {
+            suiteFailed++;
+          } else {
+            // interrupted/cancelled/stopped and any future non-passed states
+            suiteErrors++;
+          }
+        } catch (Exception e) {
+          logger.error("Failed to finish test item: " + itemId, e);
+        }
+      } catch (Exception e) {
+        logger.error("Failed to parse metric JSON for v2 publish: {}", metricJson, e);
+      }
+    }
+
+    if (suiteItemId != null && !suiteItemId.trim().isEmpty()) {
+      String suiteSummary =
+          buildSuiteSummaryMessage(
+              suiteName, suiteTotal, suitePassed, suiteFailed, suiteSkipped, suiteErrors);
+      try {
+        apiClient.log(launchId, suiteItemId, anyFailure ? "warn" : "info", suiteSummary, suiteEnd);
+      } catch (Exception e) {
+        logger.warn("Failed to send suite summary log for suite item: {}", suiteItemId, e);
+      }
+      try {
+        apiClient.finishTestItem(launchId, suiteItemId, anyFailure ? "failed" : "passed", suiteEnd);
+      } catch (Exception e) {
+        logger.error("Failed to finish suite item: {}", suiteItemId, e);
+      }
+    }
+
+    try {
+      apiClient.finishLaunch(launchId, anyFailure ? "failed" : "passed", suiteEnd);
+      logger.debug("Finished launch {}", launchId);
+    } catch (Exception e) {
+      logger.error("Failed to finish launch: {}", launchId, e);
     }
   }
+
+  private static String buildItemDetailMessage(
+      String sampleLabel,
+      boolean success,
+      String responseMessage,
+      String failureMessage,
+      String requestHeaders,
+      String requestBody,
+      String responseHeaders,
+      String responseBody,
+      String requestUrl,
+      String requestParameters,
+      String assertionErrors,
+      String responseCode,
+      int totalCount,
+      int successCount,
+      int failedCount) {
+    StringBuilder sb = new StringBuilder(2048);
+    sb.append("sampleLabel: ").append(safe(sampleLabel)).append('\n');
+    sb.append("success: ").append(success).append('\n');
+    sb.append("total: ").append(totalCount).append('\n');
+    sb.append("successCount: ").append(successCount).append('\n');
+    sb.append("failed: ").append(failedCount).append('\n');
+    sb.append("requestUrl: ").append(safe(requestUrl)).append('\n');
+    sb.append("requestParameters:\n").append(limit(safe(requestParameters))).append('\n');
+    sb.append("responseCode: ").append(safe(responseCode)).append('\n');
+    sb.append("responseMessage: ").append(safe(responseMessage)).append('\n');
+    sb.append("failureMessage: ").append(limit(safe(failureMessage))).append('\n');
+    sb.append("assertionErrors:\n").append(limit(safe(assertionErrors))).append('\n');
+    sb.append("requestHeaders:\n").append(limit(safe(requestHeaders))).append('\n');
+    sb.append("requestBody:\n").append(limit(safe(requestBody))).append('\n');
+    sb.append("responseHeaders:\n").append(limit(safe(responseHeaders))).append('\n');
+    sb.append("responseBody:\n").append(limit(safe(responseBody)));
+    return sb.toString();
+  }
+
+  private static String safe(String value) {
+    if (value == null) {
+      return "";
+    }
+    // Remove control characters that can break proxies/gateways while preserving line breaks.
+    return value.replaceAll("[\\p{Cntrl}&&[^\\r\\n\\t]]", " ");
+  }
+
+  private static String limit(String value) {
+    if (value == null) {
+      return "";
+    }
+    if (value.length() <= MAX_FIELD_LOG_LENGTH) {
+      return value;
+    }
+    return value.substring(0, MAX_FIELD_LOG_LENGTH)
+        + "\n...[truncated "
+        + (value.length() - MAX_FIELD_LOG_LENGTH)
+        + " chars]";
+  }
+
+  private static String buildSummaryMessage(
+      String sampleLabel,
+      boolean success,
+      String responseCode,
+      String responseMessage,
+      String failureMessage,
+      int totalCount,
+      int successCount,
+      int failedCount) {
+    StringBuilder sb = new StringBuilder(512);
+    sb.append("summary\n");
+    sb.append("sampleLabel: ").append(safe(sampleLabel)).append('\n');
+    sb.append("success: ").append(success).append('\n');
+    sb.append("total: ").append(totalCount).append('\n');
+    sb.append("successCount: ").append(successCount).append('\n');
+    sb.append("failed: ").append(failedCount).append('\n');
+    sb.append("responseCode: ").append(safe(responseCode)).append('\n');
+    sb.append("responseMessage: ").append(safe(responseMessage)).append('\n');
+    sb.append("failureMessage: ").append(safe(failureMessage));
+    return sb.toString();
+  }
+
+  private static String extractRequestParameters(String requestUrl, String requestBody) {
+    StringBuilder sb = new StringBuilder();
+    String query = extractQueryFromUrl(requestUrl);
+    if (!query.isEmpty()) {
+      sb.append("query: ").append(query);
+    }
+    String bodyParams = extractBodyArguments(requestBody);
+    if (!bodyParams.isEmpty()) {
+      if (sb.length() > 0) {
+        sb.append('\n');
+      }
+      sb.append("body: ").append(bodyParams);
+    }
+    return sb.toString();
+  }
+
+  private static String extractQueryFromUrl(String requestUrl) {
+    if (requestUrl == null || requestUrl.trim().isEmpty()) {
+      return "";
+    }
+    try {
+      URI uri = URI.create(requestUrl.trim());
+      String query = uri.getRawQuery();
+      if (query == null || query.isEmpty()) {
+        return "";
+      }
+      String[] parts = query.split("&");
+      List<String> decodedParts = new ArrayList<>();
+      for (String p : parts) {
+        decodedParts.add(URLDecoder.decode(p, StandardCharsets.UTF_8.name()));
+      }
+      return String.join("&", decodedParts);
+    } catch (Exception e) {
+      return "";
+    }
+  }
+
+  private static String extractBodyArguments(String requestBody) {
+    String body = safe(requestBody);
+    if (body.isEmpty()) {
+      return "";
+    }
+    int idx = body.indexOf("Arguments:");
+    if (idx >= 0) {
+      String argsPart = body.substring(idx + "Arguments:".length()).trim();
+      int end = argsPart.indexOf('\n');
+      return end >= 0 ? argsPart.substring(0, end).trim() : argsPart;
+    }
+    return "";
+  }
+
+  private static String extractAssertionErrors(com.fasterxml.jackson.databind.JsonNode node) {
+    com.fasterxml.jackson.databind.JsonNode assertionNode = node.path("AssertionResults");
+    if (assertionNode.isMissingNode() || assertionNode.isNull()) {
+      return "";
+    }
+    if (assertionNode.isArray()) {
+      List<String> errors = new ArrayList<>();
+      for (com.fasterxml.jackson.databind.JsonNode entry : assertionNode) {
+        boolean isFailure = entry.path("failure").asBoolean(false);
+        String message = entry.path("failureMessage").asText("");
+        String name = entry.path("name").asText("");
+        if (isFailure || !message.trim().isEmpty()) {
+          errors.add((name.isEmpty() ? "assertion" : name) + ": " + message);
+        }
+      }
+      return String.join("\n", errors);
+    }
+    return assertionNode.toString();
+  }
+
+  private String resolveSuiteName() {
+    String suiteName = safe(getReportPortalConfigs().get("TestSuiteName"));
+    if (!suiteName.isEmpty()) {
+      return suiteName;
+    }
+    String testName = safe(getReportPortalConfigs().get("TestName"));
+    return testName.isEmpty() ? "JMeter Suite" : testName;
+  }
+
+  private Instant resolveLaunchStartTime() {
+    Instant earliest = null;
+    for (String metricJson : this.metricList) {
+      try {
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(metricJson);
+        Instant candidate = parseSampleInstant(node.path("SampleStartTime").asText(""), null);
+        if (candidate != null && (earliest == null || candidate.isBefore(earliest))) {
+          earliest = candidate;
+        }
+      } catch (Exception ignored) {
+      }
+    }
+    return earliest != null ? earliest : Instant.now();
+  }
+
+  private Instant resolveLaunchEndTime() {
+    Instant latest = null;
+    for (String metricJson : this.metricList) {
+      try {
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(metricJson);
+        Instant candidate = parseSampleInstant(node.path("SampleEndTime").asText(""), null);
+        if (candidate != null && (latest == null || candidate.isAfter(latest))) {
+          latest = candidate;
+        }
+      } catch (Exception ignored) {
+      }
+    }
+    return latest != null ? latest : Instant.now();
+  }
+
+  private static Instant parseSampleInstant(String raw, Instant fallback) {
+    String value = safe(raw);
+    if (value.isEmpty()) {
+      return fallback;
+    }
+    try {
+      LocalDateTime localDateTime = LocalDateTime.parse(value, SAMPLE_TIME_FORMATTER);
+      return localDateTime.atZone(ZoneId.systemDefault()).toInstant();
+    } catch (DateTimeParseException ex) {
+      return fallback;
+    }
+  }
+
+  private static String normalizeForCodeRef(String value) {
+    String s = safe(value).toLowerCase();
+    s = s.replaceAll("[^a-z0-9._/-]+", "_");
+    return s.isEmpty() ? "unknown" : s;
+  }
+
+  private static String buildUniqueId(String... parts) {
+    StringBuilder sb = new StringBuilder();
+    for (String p : parts) {
+      sb.append(safe(p)).append('|');
+    }
+    return UUID.nameUUIDFromBytes(sb.toString().getBytes()).toString();
+  }
+
+  private static String toReportPortalStatus(boolean success, String responseCode, String failureMessage) {
+    if (success) {
+      return "passed";
+    }
+    String rc = safe(responseCode);
+    String fm = safe(failureMessage).toLowerCase();
+    if (fm.contains("skip")) {
+      return "skipped";
+    }
+    if (rc.equals("408") || rc.equals("499")) {
+      return "interrupted";
+    }
+    if (fm.contains("interrupted") || fm.contains("timeout")) {
+      return "interrupted";
+    }
+    if (fm.contains("cancel")) {
+      return "cancelled";
+    }
+    if (fm.contains("abort") || fm.contains("stopped")) {
+      return "stopped";
+    }
+    return "failed";
+  }
+
+  private static String buildSuiteSummaryMessage(
+      String suiteName,
+      int total,
+      int passed,
+      int failed,
+      int skipped,
+      int errors) {
+    StringBuilder sb = new StringBuilder(256);
+    sb.append("<testsuite errors=\"").append(errors).append("\"\n");
+    sb.append("           failures=\"").append(failed).append("\"\n");
+    sb.append("           name=\"").append(safe(suiteName)).append("\"\n");
+    sb.append("           skipped=\"").append(skipped).append("\"\n");
+    sb.append("           tests=\"").append(total).append("\"\n");
+    sb.append("           passed=\"").append(passed).append("\"/>");
+    return sb.toString();
+  }
+
 }
