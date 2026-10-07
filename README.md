@@ -112,9 +112,25 @@ JMeter Backend Listener ReportPortal is a JMeter plugin enabling you to send tes
 
 -   In your **Test Pan**, right click on **Thread Group** > Add > Listener > Backend Listener
 -   Choose `io.github.prasantmohanty.jmeter.backendlistener.reportportal.ReportPortalBackendClient` as `Backend Listener Implementation`.
--   Specify parameters as shown in image below (**ReportPortalAPIBase** , **ProjectName** and **BearerToken** are mandatory ones): 
+-   Set `ReportPortalPropertiesPath` to the location of your `reportportal.properties` file. If you leave it blank, the plugin uses `${JMETER_HOME}/bin/reportportal.properties`.
+-   Put the ReportPortal connection values in that properties file. The plugin reads keys such as `ReportPortalAPIBase`, `ProjectName`, `BearerToken`, `TestName`, `BuildNumber`, `HttpTimeoutMs`, `HttpConnectTimeoutMs`, `HttpWriteTimeoutMs`, and `HttpReadTimeoutMs`.
+-   The old listener parameters are still accepted as a fallback, but the intended configuration is now file-based.
 
 ![Screenshot of configuration](docs/configuration.JPG "Screenshot of configuration")
+
+Example `reportportal.properties`:
+
+```properties
+ReportPortalAPIBase=http://localhost:8080/api
+ProjectName=MyProject
+BearerToken=my-token
+TestName=JMeter Test
+BuildNumber=0
+HttpTimeoutMs=180000
+HttpConnectTimeoutMs=180000
+HttpWriteTimeoutMs=180000
+HttpReadTimeoutMs=180000
+```
 
 ### Running your JMeter test plan
 

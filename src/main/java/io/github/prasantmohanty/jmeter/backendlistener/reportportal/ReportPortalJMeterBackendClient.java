@@ -18,11 +18,16 @@ package io.github.prasantmohanty.jmeter.backendlistener.reportportal;
 
 import com.google.gson.Gson;
 import io.github.prasantmohanty.jmeter.backendlistener.model.MetricsRow;
+import io.github.prasantmohanty.jmeter.backendlistener.reportportal.SensitiveValueMasker;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -64,13 +69,22 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
 
   private static final String REPORTPORTAL_HTTP_READ_TIMEOUT_MS = "HttpReadTimeoutMs";
 
+  private static final String REPORTPORTAL_PROPERTIES_PATH = "ReportPortalPropertiesPath";
+
+  private static final String REPORTPORTAL_FILTERS = "Filters";
+
+  private static final String REPORTPORTAL_FIELDS = "Fields";
+
+  private static final String REPORTPORTAL_MASKED_FIELDS = "MaskedFields";
+
   private static final Map<String, String> DEFAULT_ARGS = new LinkedHashMap<>();
 
   static {
     // IMPORTANT: ReportPortalAPIBase should be the base URL without /v1
     // Correct:   http://reportportal.example.com/api
     // Wrong:     http://reportportal.example.com/api/v1  (causes double v1 in path)
-    DEFAULT_ARGS.put(REPORTPORTAL_API_BASE, "http://localhost:8080/api");
+    
+    /**DEFAULT_ARGS.put(REPORTPORTAL_API_BASE, "http://localhost:8080/api");
     DEFAULT_ARGS.put(REPORTPORTAL_PROJECT_NAME, "MyProject");
     DEFAULT_ARGS.put(REPORTPORTAL_BEARRER_TOKEN_STRING, "my-token");
     DEFAULT_ARGS.put(REPORTPORTAL_TEST_NAME, "JMeter Test");
@@ -79,11 +93,14 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
     DEFAULT_ARGS.put(REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS, "180000");
     DEFAULT_ARGS.put(REPORTPORTAL_HTTP_READ_TIMEOUT_MS, "180000");
     DEFAULT_ARGS.put(BUILD_NUMBER, "0");
+    **/
+    DEFAULT_ARGS.put(REPORTPORTAL_PROPERTIES_PATH, resolveDefaultPropertiesPath());
   }
 
   private ReportPortalMetricPublisher publisher;
   private Set<String> filters;
   private Set<String> fields;
+  private List<String> maskedFields;
   private String buildNumber;
   private String testName;
 
@@ -101,37 +118,47 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
    */
   @Override
   public void setupTest(BackendListenerContext context) throws Exception {
-    // Initialize configuration and publisher
-    logger.debug(BUILD_NUMBER + " parameter: " + context.getParameter(BUILD_NUMBER));
-    logger.debug(
-        REPORTPORTAL_API_BASE + " parameter: " + context.getParameter(REPORTPORTAL_API_BASE));
-    logger.debug(
-        REPORTPORTAL_PROJECT_NAME
-            + " parameter: "
-            + context.getParameter(REPORTPORTAL_PROJECT_NAME));
-    logger.debug(
-        REPORTPORTAL_TEST_NAME + " parameter: " + context.getParameter(REPORTPORTAL_TEST_NAME));
+    String propertiesPath = resolvePropertiesPath(context);
+    Properties reportPortalProperties = loadReportPortalProperties(propertiesPath);
+
+    logger.debug("Loading ReportPortal configuration from: {}", propertiesPath);
 
     Map<String, String> reportPortalConfigs = new HashMap<>();
-    reportPortalConfigs.put(REPORTPORTAL_API_BASE, context.getParameter(REPORTPORTAL_API_BASE));
     reportPortalConfigs.put(
-        REPORTPORTAL_PROJECT_NAME, context.getParameter(REPORTPORTAL_PROJECT_NAME));
+      REPORTPORTAL_API_BASE,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_API_BASE));
     reportPortalConfigs.put(
-        REPORTPORTAL_BEARRER_TOKEN_STRING, context.getParameter(REPORTPORTAL_BEARRER_TOKEN_STRING));
-    reportPortalConfigs.put(REPORTPORTAL_TEST_NAME, context.getParameter(REPORTPORTAL_TEST_NAME));
+      REPORTPORTAL_PROJECT_NAME,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_PROJECT_NAME));
     reportPortalConfigs.put(
-      REPORTPORTAL_HTTP_TIMEOUT_MS, context.getParameter(REPORTPORTAL_HTTP_TIMEOUT_MS));
+      REPORTPORTAL_BEARRER_TOKEN_STRING,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_BEARRER_TOKEN_STRING));
+    reportPortalConfigs.put(
+      REPORTPORTAL_TEST_NAME,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_TEST_NAME));
+    reportPortalConfigs.put(
+      REPORTPORTAL_HTTP_TIMEOUT_MS,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_HTTP_TIMEOUT_MS));
     reportPortalConfigs.put(
       REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS,
-      context.getParameter(REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS));
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_HTTP_CONNECT_TIMEOUT_MS));
     reportPortalConfigs.put(
       REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS,
-      context.getParameter(REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS));
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_HTTP_WRITE_TIMEOUT_MS));
     reportPortalConfigs.put(
       REPORTPORTAL_HTTP_READ_TIMEOUT_MS,
-      context.getParameter(REPORTPORTAL_HTTP_READ_TIMEOUT_MS));
-    reportPortalConfigs.put(BUILD_NUMBER, context.getParameter(BUILD_NUMBER));
-    
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_HTTP_READ_TIMEOUT_MS));
+    reportPortalConfigs.put(BUILD_NUMBER, resolveConfigValue(reportPortalProperties, context, BUILD_NUMBER));
+    reportPortalConfigs.put(
+      REPORTPORTAL_FILTERS,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_FILTERS));
+    reportPortalConfigs.put(
+      REPORTPORTAL_FIELDS,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_FIELDS));
+    reportPortalConfigs.put(
+      REPORTPORTAL_MASKED_FIELDS,
+      resolveConfigValue(reportPortalProperties, context, REPORTPORTAL_MASKED_FIELDS));
+
     // Validate required configuration
     String apiBase = reportPortalConfigs.get(REPORTPORTAL_API_BASE);
     if (apiBase == null || apiBase.trim().isEmpty()) {
@@ -144,13 +171,14 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
 
     this.filters = new HashSet<>();
     this.fields = new HashSet<>();
-    this.buildNumber =
-        (JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER) != null
-                && !JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER)
-                    .trim()
-                    .equals(""))
-            ? JMeterUtils.getProperty(ReportPortalJMeterBackendClient.BUILD_NUMBER)
-            : "0";
+    Set<String> maskedFieldsSet = new HashSet<>();
+    convertParameterToSet(reportPortalConfigs.get(REPORTPORTAL_FILTERS), this.filters);
+    convertParameterToSet(reportPortalConfigs.get(REPORTPORTAL_FIELDS), this.fields);
+    maskedFieldsSet.addAll(SensitiveValueMasker.defaultMaskedFields());
+    convertParameterToSet(reportPortalConfigs.get(REPORTPORTAL_MASKED_FIELDS), maskedFieldsSet);
+    this.maskedFields = new java.util.ArrayList<>(maskedFieldsSet);
+    this.buildNumber = normalizeOrDefault(reportPortalConfigs.get(BUILD_NUMBER), "0");
+    this.testName = normalizeOrDefault(reportPortalConfigs.get(REPORTPORTAL_TEST_NAME), "JMeter Test");
     logger.debug("Build Number: " + this.buildNumber);
     logger.debug("Test Name: " + this.testName);
 
@@ -169,16 +197,14 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
   /**
    * Convert a semicolon separated parameter value into a set of lowercase strings.
    *
-   * @param context Backend listener context
-   * @param parameter parameter name that contains semicolon-delimited values
+   * @param parameter semicolon-delimited values
    * @param set destination set to populate
    */
-  private void convertParameterToSet(
-      BackendListenerContext context, String parameter, Set<String> set) {
-    String[] array =
-        (context.getParameter(parameter).contains(";"))
-            ? context.getParameter(parameter).split(";")
-            : new String[] {context.getParameter(parameter)};
+  private void convertParameterToSet(String parameter, Set<String> set) {
+    if (parameter == null || parameter.trim().isEmpty()) {
+      return;
+    }
+    String[] array = parameter.contains(";") ? parameter.split(";") : new String[] {parameter};
     if (array.length > 0 && !array[0].trim().equals("")) {
       for (String entry : array) {
         set.add(entry.toLowerCase().trim());
@@ -193,7 +219,7 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
   public void handleSampleResults(List<SampleResult> results, BackendListenerContext context) {
     for (SampleResult sr : results) {
 
-      MetricsRow row = new MetricsRow(sr, this.buildNumber, fields);
+      MetricsRow row = new MetricsRow(sr, this.buildNumber, fields, this.maskedFields);
 
       logger.debug("Generated MetricsRow: " + row.toString());
 
@@ -284,5 +310,64 @@ public class ReportPortalJMeterBackendClient extends AbstractBackendListenerClie
 
     logger.debug("Sample validation result: " + valid);
     return valid;
+  }
+
+  private static String resolveDefaultPropertiesPath() {
+    String binDir = JMeterUtils.getJMeterBinDir();
+    if (binDir == null || binDir.trim().isEmpty()) {
+      binDir = System.getProperty("user.dir", ".");
+    }
+    logger.debug("Resolving default properties path from JMeter bin directory: " + binDir);
+    return new File(binDir, "reportportal.properties").getAbsolutePath();
+  }
+
+  private String resolvePropertiesPath(BackendListenerContext context) {
+    String configuredPath = context.getParameter(REPORTPORTAL_PROPERTIES_PATH);
+    if (configuredPath != null && !configuredPath.trim().isEmpty()) {
+      return configuredPath.trim();
+    }
+    return resolveDefaultPropertiesPath();
+  }
+
+  private Properties loadReportPortalProperties(String propertiesPath) throws IOException {
+    File propertiesFile = new File(propertiesPath);
+    if (!propertiesFile.exists()) {
+      throw new IllegalArgumentException(
+          "ReportPortal properties file does not exist: " + propertiesFile.getAbsolutePath());
+    }
+
+    Properties properties = new Properties();
+    try (FileInputStream inputStream = new FileInputStream(propertiesFile)) {
+      properties.load(inputStream);
+    }
+    return properties;
+  }
+
+  private String resolveConfigValue(
+      Properties properties, BackendListenerContext context, String key) {
+    String fileValue = normalizeOrNull(properties.getProperty(key));
+    if (fileValue != null) {
+      return fileValue;
+    }
+
+    String contextValue = normalizeOrNull(context.getParameter(key));
+    if (contextValue != null) {
+      return contextValue;
+    }
+
+    return null;
+  }
+
+  private static String normalizeOrDefault(String value, String defaultValue) {
+    String normalized = normalizeOrNull(value);
+    return normalized != null ? normalized : defaultValue;
+  }
+
+  private static String normalizeOrNull(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 }

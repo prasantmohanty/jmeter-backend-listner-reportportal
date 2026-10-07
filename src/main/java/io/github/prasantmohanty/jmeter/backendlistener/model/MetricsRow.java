@@ -16,6 +16,7 @@
 
 package io.github.prasantmohanty.jmeter.backendlistener.model;
 
+import io.github.prasantmohanty.jmeter.backendlistener.reportportal.SensitiveValueMasker;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.ParseException;
@@ -27,6 +28,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.jmeter.assertions.AssertionResult;
@@ -44,6 +46,7 @@ public class MetricsRow {
   private String ciBuildNumber;
   private HashMap<String, Object> metricsMap;
   private Set<String> fields;
+  private List<String> maskedFields;
 
   /**
    * Create a MetricsRow for the given SampleResult.
@@ -53,10 +56,16 @@ public class MetricsRow {
    * @param fields set of fields to include; empty set means include all
    */
   public MetricsRow(SampleResult sr, String buildNumber, Set<String> fields) {
+    this(sr, buildNumber, fields, SensitiveValueMasker.defaultMaskedFields());
+  }
+
+  public MetricsRow(
+      SampleResult sr, String buildNumber, Set<String> fields, List<String> maskedFields) {
     this.sampleResult = sr;
     this.ciBuildNumber = buildNumber;
     this.metricsMap = new HashMap<>();
     this.fields = fields;
+    this.maskedFields = maskedFields;
   }
 
   @Override
@@ -172,7 +181,9 @@ public class MetricsRow {
         boolean failure = assertionResult.isFailure() || assertionResult.isError();
         isFailure = isFailure || assertionResult.isFailure() || assertionResult.isError();
         assertionMap.put("failure", failure);
-        assertionMap.put("failureMessage", assertionResult.getFailureMessage());
+        assertionMap.put(
+            "failureMessage",
+            SensitiveValueMasker.maskText(assertionResult.getFailureMessage(), this.maskedFields));
         failureMessageStringBuilder.append(assertionResult.getFailureMessage());
         failureMessageStringBuilder.append("\n");
         assertionMap.put("name", assertionResult.getName());
@@ -180,7 +191,9 @@ public class MetricsRow {
         i++;
       }
       addFilteredMetricToMetricsMap("AssertionResults", assertionArray);
-      addFilteredMetricToMetricsMap("FailureMessage", failureMessageStringBuilder.toString());
+      addFilteredMetricToMetricsMap(
+          "FailureMessage",
+          SensitiveValueMasker.maskText(failureMessageStringBuilder.toString(), this.maskedFields));
       addFilteredMetricToMetricsMap("Success", !isFailure);
     }
   }
@@ -238,11 +251,21 @@ public class MetricsRow {
 
   /** Adds request and response detail metrics such as headers, body and message. */
   private void addDetails() {
-    addFilteredMetricToMetricsMap("RequestHeaders", this.sampleResult.getRequestHeaders());
-    addFilteredMetricToMetricsMap("RequestBody", this.sampleResult.getSamplerData());
-    addFilteredMetricToMetricsMap("ResponseHeaders", this.sampleResult.getResponseHeaders());
-    addFilteredMetricToMetricsMap("ResponseBody", this.sampleResult.getResponseDataAsString());
-    addFilteredMetricToMetricsMap("ResponseMessage", this.sampleResult.getResponseMessage());
+    addFilteredMetricToMetricsMap(
+      "RequestHeaders",
+      SensitiveValueMasker.maskText(this.sampleResult.getRequestHeaders(), this.maskedFields));
+    addFilteredMetricToMetricsMap(
+      "RequestBody",
+      SensitiveValueMasker.maskText(this.sampleResult.getSamplerData(), this.maskedFields));
+    addFilteredMetricToMetricsMap(
+      "ResponseHeaders",
+      SensitiveValueMasker.maskText(this.sampleResult.getResponseHeaders(), this.maskedFields));
+    addFilteredMetricToMetricsMap(
+      "ResponseBody",
+      SensitiveValueMasker.maskText(this.sampleResult.getResponseDataAsString(), this.maskedFields));
+    addFilteredMetricToMetricsMap(
+      "ResponseMessage",
+      SensitiveValueMasker.maskText(this.sampleResult.getResponseMessage(), this.maskedFields));
   }
 
   /**
@@ -286,7 +309,7 @@ public class MetricsRow {
    */
   private void addFilteredMetricToMetricsMap(String key, Object value) {
     if (this.fields.size() == 0 || this.fields.contains(key.toLowerCase())) {
-      this.metricsMap.put(key, value);
+      this.metricsMap.put(key, SensitiveValueMasker.maskValue(key, value, this.maskedFields));
     }
   }
 

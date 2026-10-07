@@ -51,3 +51,12 @@ out/
 certs/
 *.jks
 *.p12
+graphify-out/
+#copilot folder
+.copilot/
+
+pom.xml
+
+copilot-instructions.md
+
+rtk-rewrite.json

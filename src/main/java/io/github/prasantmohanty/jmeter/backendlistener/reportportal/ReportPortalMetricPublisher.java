@@ -57,10 +57,13 @@ class ReportPortalMetricPublisher {
 
   private Map<String, String> reportPortalConfigs = new HashMap<>();
   private List<String> metricList;
+  private List<String> maskedFields;
 
   ReportPortalMetricPublisher(Map<String, String> reportPortalConfigs) {
     this.reportPortalConfigs = reportPortalConfigs;
     this.metricList = new LinkedList<>();
+    this.maskedFields = new ArrayList<>(SensitiveValueMasker.defaultMaskedFields());
+    convertParameterToSet(reportPortalConfigs.get("MaskedFields"), this.maskedFields);
   }
 
   public Map<String, String> getReportPortalConfigs() {
@@ -309,6 +312,16 @@ class ReportPortalMetricPublisher {
             buildItemDetailMessage(
                 sampleLabel,
                 success,
+            //maskSensitiveText(responseMessage),
+            //maskSensitiveText(failureMessage),
+            //maskSensitiveText(requestHeaders),
+            //maskSensitiveText(requestBody),
+            //maskSensitiveText(responseHeaders),
+            //maskSensitiveText(responseBody),
+            //maskSensitiveText(requestUrl),
+            //maskSensitiveText(requestParameters),
+            //maskSensitiveText(assertionErrors),
+            
                 responseMessage,
                 failureMessage,
                 requestHeaders,
@@ -317,7 +330,7 @@ class ReportPortalMetricPublisher {
                 responseBody,
                 requestUrl,
                 requestParameters,
-                assertionErrors,
+                assertionErrors,            
                 responseCode,
                 totalCount,
                 successCount,
@@ -327,8 +340,14 @@ class ReportPortalMetricPublisher {
                 sampleLabel,
                 success,
                 responseCode,
-                responseMessage,
-                failureMessage,
+                //maskSensitiveText(responseMessage),
+              //maskSensitiveText(failureMessage),
+              //maskSensitiveText(requestBody),
+              //maskSensitiveText(responseBody),
+               responseMessage,
+               failureMessage,
+               requestBody,
+               responseBody,
                 totalCount,
                 successCount,
                 failedCount);
@@ -431,6 +450,23 @@ class ReportPortalMetricPublisher {
     return value.replaceAll("[\\p{Cntrl}&&[^\\r\\n\\t]]", " ");
   }
 
+  String maskSensitiveText(String value) {
+    return SensitiveValueMasker.maskText(safe(value), this.maskedFields);
+  }
+
+  private static void convertParameterToSet(String parameter, List<String> list) {
+    if (parameter == null || parameter.trim().isEmpty()) {
+      return;
+    }
+    String[] array = parameter.contains(";") ? parameter.split(";") : new String[] {parameter};
+    for (String entry : array) {
+      String normalized = entry.toLowerCase().trim();
+      if (!normalized.isEmpty() && !list.contains(normalized)) {
+        list.add(normalized);
+      }
+    }
+  }
+
   private static String limit(String value) {
     if (value == null) {
       return "";
@@ -450,6 +486,8 @@ class ReportPortalMetricPublisher {
       String responseCode,
       String responseMessage,
       String failureMessage,
+      String requestBody,
+      String responseBody,
       int totalCount,
       int successCount,
       int failedCount) {
@@ -462,7 +500,9 @@ class ReportPortalMetricPublisher {
     sb.append("failed: ").append(failedCount).append('\n');
     sb.append("responseCode: ").append(safe(responseCode)).append('\n');
     sb.append("responseMessage: ").append(safe(responseMessage)).append('\n');
-    sb.append("failureMessage: ").append(safe(failureMessage));
+    sb.append("failureMessage: ").append(safe(failureMessage)).append('\n');
+    sb.append("requestBody:\n").append(limit(safe(requestBody))).append('\n');
+    sb.append("responseBody:\n").append(limit(safe(responseBody)));
     return sb.toString();
   }
 
