@@ -18,8 +18,10 @@ package io.github.prasantmohanty.jmeter.backendlistener.model;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import org.apache.jmeter.assertions.AssertionResult;
@@ -96,5 +98,35 @@ public class TestMetricsRow {
     assertNotNull(mapMetric);
     assertNotNull(mapMetric.get("SampleLabel"));
     assertEquals(mapMetric.get("SampleLabel").toString(), "Test Sample");
+  }
+
+  @Test
+  public void testMaskedFieldsAreRedacted() throws UnknownHostException {
+    SampleResult sampleResult = new SampleResult();
+    sampleResult.sampleStart();
+    sampleResult.setSampleLabel("Masked Sample");
+    sampleResult.setRequestHeaders(
+        "client_id: real-client\nAuthorization: Bearer top-secret\naccept: application/json");
+    sampleResult.setSamplerData("Arguments: client_secret=super-secret\nother=value");
+    sampleResult.setResponseHeaders("token=real-token");
+    sampleResult.setResponseData("password=secret-value".getBytes());
+    sampleResult.setResponseMessage("refresh_token=abc123");
+    sampleResult.sampleEnd();
+
+    MetricsRow metricsRow = new MetricsRow(
+        sampleResult,
+        "0",
+        new HashSet<>(),
+        Arrays.asList(
+          "client_id", "client_secret", "authorization", "token", "password", "refresh_token"));
+
+    Map<String, Object> mapMetric = metricsRow.getRowAsMap(context, "reportportal.");
+
+    assertTrue(mapMetric.get("RequestHeaders").toString().contains("client_id: ****"));
+      assertTrue(mapMetric.get("RequestHeaders").toString().contains("Authorization: ****"));
+    assertTrue(mapMetric.get("RequestBody").toString().contains("client_secret=****"));
+    assertTrue(mapMetric.get("ResponseHeaders").toString().contains("token=****"));
+    assertTrue(mapMetric.get("ResponseBody").toString().contains("password=****"));
+    assertTrue(mapMetric.get("ResponseMessage").toString().contains("refresh_token=****"));
   }
 }
