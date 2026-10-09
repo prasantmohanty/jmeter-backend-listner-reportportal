@@ -436,9 +436,9 @@ class ReportPortalMetricPublisher {
     sb.append("failureMessage: ").append(limit(safe(failureMessage))).append('\n');
     sb.append("assertionErrors:\n").append(limit(safe(assertionErrors))).append('\n');
     sb.append("requestHeaders:\n").append(limit(safe(requestHeaders))).append('\n');
-    sb.append("requestBody:\n").append(limit(safe(requestBody))).append('\n');
+    sb.append("requestBody:\n").append(limit(formatBodyForReportPortal(requestBody))).append('\n');
     sb.append("responseHeaders:\n").append(limit(safe(responseHeaders))).append('\n');
-    sb.append("responseBody:\n").append(limit(safe(responseBody)));
+    sb.append("responseBody:\n").append(limit(formatBodyForReportPortal(responseBody)));
     return sb.toString();
   }
 
@@ -501,9 +501,38 @@ class ReportPortalMetricPublisher {
     sb.append("responseCode: ").append(safe(responseCode)).append('\n');
     sb.append("responseMessage: ").append(safe(responseMessage)).append('\n');
     sb.append("failureMessage: ").append(safe(failureMessage)).append('\n');
-    sb.append("requestBody:\n").append(limit(safe(requestBody))).append('\n');
-    sb.append("responseBody:\n").append(limit(safe(responseBody)));
+    sb.append("requestBody:\n").append(limit(formatBodyForReportPortal(requestBody))).append('\n');
+    sb.append("responseBody:\n").append(limit(formatBodyForReportPortal(responseBody)));
     return sb.toString();
+  }
+
+  /**
+   * ReportPortal renders log messages as markup. Raw XML in a log message is therefore parsed as
+   * markup and its elements disappear from the displayed request/response body. Escape only XML
+   * markup so JSON and other request formats remain unchanged in the published log.
+   */
+  static String formatBodyForReportPortal(String value) {
+    String body = safe(value);
+    if (!containsXmlMarkup(body)) {
+      return body;
+    }
+    return body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+  }
+
+  private static boolean containsXmlMarkup(String value) {
+    for (int i = 0; i < value.length() - 1; i++) {
+      if (value.charAt(i) != '<') {
+        continue;
+      }
+      char next = value.charAt(i + 1);
+      if (Character.isLetter(next) || next == '/' || next == '?' || next == '!') {
+        int closingBracket = value.indexOf('>', i + 2);
+        if (closingBracket >= 0) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static String extractRequestParameters(String requestUrl, String requestBody) {
